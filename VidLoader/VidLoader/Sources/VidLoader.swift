@@ -87,7 +87,7 @@ public final class VidLoader: VidLoadable {
 
     init(isMobileDataAccessEnabled: Bool,
          maxConcurrentDownloads: Int,
-         session: Session = DownloadSession.init(),
+         session: Session = AggDownloadSession.init(),
          playlistLoader: PlaylistLoadable = PlaylistLoader.init(),
          network: Network = NetworkHandler.init(),
          schemeHandler: SchemeHandleable = SchemeHandler.init(),
@@ -249,15 +249,16 @@ public final class VidLoader: VidLoadable {
         case .success(let urlAsset):
             startTask(urlAsset: urlAsset,
                       streamResource: streamResource,
-                      item: item |> ItemInformation._state .~ .running(0))
+                      item: item |> ItemInformation._state .~ .running(0),
+                      mediaSelections: AVURLAsset(url: url).allMediaSelections)
         case .failure(let error):
             handle(event: .failed(error: .init(error: error)),
                    activeItem: item)
         }
     }
 
-    private func startTask(urlAsset: AVURLAsset, streamResource: StreamResource, item: ItemInformation) {
-        guard let task = session.addNewTask(urlAsset: urlAsset, for: item) else {
+    private func startTask(urlAsset: AVURLAsset, streamResource: StreamResource, item: ItemInformation, mediaSelections: [AVMediaSelection]=[]) {
+        guard let task = session.addNewTask(urlAsset: urlAsset, for: item, with: mediaSelections) else {
             return
         }
         setupResourceDelegate(item: item, task: task, streamResource: streamResource)
@@ -265,7 +266,7 @@ public final class VidLoader: VidLoadable {
     }
 
     func setupResourceDelegate(item: ItemInformation,
-                               task: AVAssetDownloadTask,
+                               task: URLSessionTask,
                                streamResource: StreamResource) {
         let keyDidLoad: () -> Void = { [weak self] in
             guard let upToDateItem = task.item else { return }
@@ -276,8 +277,14 @@ public final class VidLoader: VidLoadable {
         }
         let observer = ResourceLoaderObserver(taskDidFail: taskDidFail, keyDidLoad: keyDidLoad)
         let resourceLoader = ResourceLoader(observer: observer, streamResource: streamResource, headers: item.headers)
-        task.urlAsset.resourceLoader.setDelegate(resourceLoader, queue: resourceLoader.queue)
-        task.urlAsset.resourceLoader.preloadsEligibleContentKeys = true
+        if let task = task as? AVAssetDownloadTask {
+            task.urlAsset.resourceLoader.setDelegate(resourceLoader, queue: resourceLoader.queue)
+            task.urlAsset.resourceLoader.preloadsEligibleContentKeys = true
+        } else if let task = task as? AVAggregateAssetDownloadTask {
+            task.urlAsset.resourceLoader.setDelegate(resourceLoader, queue: resourceLoader.queue)
+            task.urlAsset.resourceLoader.preloadsEligibleContentKeys = true
+        }
+        
         resourcesDelegatesHandler.add(identifier: item.identifier, loader: resourceLoader)
     }
 }

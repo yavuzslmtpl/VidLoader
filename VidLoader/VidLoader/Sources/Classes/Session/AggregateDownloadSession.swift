@@ -8,20 +8,7 @@
 
 import AVFoundation
 
-protocol Session {
-    func allTasks(completion: Completion<[URLSessionTask]>?)
-    func task(identifier: String, completion: Completion<URLSessionTask?>?)
-    func addNewTask(urlAsset: AVURLAsset, for item: ItemInformation, with mediaSelections: [AVMediaSelection]) -> URLSessionTask?
-    func cancelTask(identifier: String, hasNotFound: @escaping () -> Void)
-    func sendKeyLoaded(item: ItemInformation)
-    func suspendTask(identifier: String)
-    func resumeTask(identifier: String)
-    func suspendAllTasks()
-    func resumeAllTasks()
-    func setup(injectedSession: AVAssetDownloadURLSession?, stateChanged: ((DownloadState, ItemInformation) -> Void)?)
-}
-
-final class DownloadSession: NSObject {
+final class AggDownloadSession: NSObject {
     private var injectedSession: AVAssetDownloadURLSession?
     private var stateChanged: ((DownloadState, ItemInformation) -> Void)?
 
@@ -45,9 +32,9 @@ final class DownloadSession: NSObject {
     private var configuration: URLSessionConfiguration {
         return .background(withIdentifier: "vidloader_session_configuration")
     }
-
+    
     /// The `didFinishDownloadingTo` method is called in many cases, we need to check asset state
-    fileprivate func handleDownloadState(item: ItemInformation, task: AVAssetDownloadTask) {
+    fileprivate func handleDownloadState(item: ItemInformation, task: AVAggregateAssetDownloadTask) {
         // When task was cancelled `didFinishDownloadingTo` delegate is calling
         // with completed state. `isCancelled` state is set in `cancelTask` function
         // and saved in task description. Also we need to handle cancelation here because
@@ -74,7 +61,7 @@ final class DownloadSession: NSObject {
     }
 }
 
-extension DownloadSession: Session {
+extension AggDownloadSession: Session {
     func task(identifier: String, completion: Completion<URLSessionTask?>?) {
         allTasks { tasks in
             let task = tasks.first(where: { $0.item?.identifier == identifier })
@@ -87,10 +74,11 @@ extension DownloadSession: Session {
     }
 
     func addNewTask(urlAsset: AVURLAsset, for item: ItemInformation, with mediaSelections: [AVMediaSelection]) -> URLSessionTask? {
-        let task = session.makeAssetDownloadTask(asset: urlAsset,
-                                                 assetTitle: item.title ?? "",
-                                                 assetArtworkData: item.artworkData,
-                                                 options: item.options)
+        let task = session.aggregateAssetDownloadTask(with: urlAsset,
+                                                      mediaSelections: mediaSelections,
+                                                      assetTitle: item.title ?? "",
+                                                      assetArtworkData: item.artworkData,
+                                                      options: item.options)
         guard let downloadTask = task else {
             stateChanged?(.failed(error: .taskNotCreated), item)
             return nil
@@ -165,37 +153,41 @@ extension DownloadSession: Session {
     }
 }
 
-extension DownloadSession: AVAssetDownloadDelegate {
-
+extension AggDownloadSession: AVAssetDownloadDelegate {
+    
     // Even if task has failed we will save asset information as completed in plist
     // `didFinishDownloadingTo` delegate is calling first after this `didCompleteWithError` is also calling
-    func urlSession(_ session: URLSession, assetDownloadTask: AVAssetDownloadTask, didFinishDownloadingTo location: URL) {
-        assetDownloadTask.update(location: location)
-        guard let item = assetDownloadTask.item else { return }
-        switch assetDownloadTask.state {
+    func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask, willDownloadTo location: URL) {
+        aggregateAssetDownloadTask.update(location: location)
+    }
+    
+    func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask, didCompleteFor mediaSelection: AVMediaSelection) {
+        guard let item = aggregateAssetDownloadTask.item else { return }
+        switch aggregateAssetDownloadTask.state {
         case .suspended:
             stateChanged?(.noConnection(item.progress), item)
         // `.canceling` can be thrown when application just launched with active downloads
         case .canceling:
             stateChanged?(.canceled, item)
         case .running, .completed:
-            handleDownloadState(item: item, task: assetDownloadTask)
+            handleDownloadState(item: item, task: aggregateAssetDownloadTask)
         @unknown default:
             print("Unimplemented cases")
         }
     }
-
+    
     // We are saving in task description:
     // progress - that is presented in UI of application
     // downloadedBytes - that is used to calculate remaining device storage
-    func urlSession(_ session: URLSession, assetDownloadTask: AVAssetDownloadTask,
+    func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
                     didLoad timeRange: CMTimeRange, totalTimeRangesLoaded loadedTimeRanges: [NSValue],
-                    timeRangeExpectedToLoad: CMTimeRange) {
+                    timeRangeExpectedToLoad: CMTimeRange,
+                    for mediaSelection: AVMediaSelection) {
         let progress = loadedTimeRanges.reduce(0) { $0 + $1.timeRangeValue.seconds / timeRangeExpectedToLoad.seconds }
-        assetDownloadTask.update(progress: min(1, max(0, progress)),
-                                 downloadedBytes: assetDownloadTask.countOfBytesReceived)
-        guard assetDownloadTask.state == .running, let item = assetDownloadTask.item else { return }
+        aggregateAssetDownloadTask.update(progress: min(1, max(0, progress)), downloadedBytes: aggregateAssetDownloadTask.countOfBytesReceived)
+        guard aggregateAssetDownloadTask.state == .running, let item = aggregateAssetDownloadTask.item else { return }
         stateChanged?(.running(progress), item)
+        print("######## ", aggregateAssetDownloadTask.state.rawValue, aggregateAssetDownloadTask.state)
     }
 
     // All main logic is doing in `didFinishDownloadingTo` delegate because
@@ -209,6 +201,7 @@ extension DownloadSession: AVAssetDownloadDelegate {
                     didCompleteWithError error: Error?) {
         // This is a very strange case, when `didCompleteWithError` is being
         // called after AVAssetDownloadTask.cancel()
+        print("######## ", task.state.rawValue, task.state)
         guard let item = task.item else { return }
 
         guard !item.isCancelled else {
@@ -217,5 +210,9 @@ extension DownloadSession: AVAssetDownloadDelegate {
         guard let error = error, !task.hasFailed else { return }
         let state: DownloadState = .failed(error: .custom(VidLoaderError(error: error)))
         stateChanged?(state, item |> ItemInformation._state .~ state)
+    }
+    
+    func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
+        print("######## ", task.state.rawValue, task.state)
     }
 }

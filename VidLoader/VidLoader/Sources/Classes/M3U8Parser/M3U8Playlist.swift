@@ -49,7 +49,7 @@ final class M3U8Playlist: PlaylistParser {
                               with baseURL: URL,
                               completion: @escaping (Result<Data, M3U8Error>) -> Void) {
         let quotationMark = "\""
-        let keysURLs = response.matches(for: RegexStrings.key).compactMap { generateURL(keyPath: $0, baseURL: baseURL) }
+        let keysURLs = Array(Set(response.matches(for: RegexStrings.key).compactMap { generateURL(keyPath: $0, baseURL: baseURL) }))
         guard !keysURLs.isEmpty else {
             return completion(.failure(.keyURLMissing))
         }

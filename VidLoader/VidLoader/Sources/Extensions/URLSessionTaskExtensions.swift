@@ -9,6 +9,8 @@
 import Foundation
 
 extension URLSessionTask {
+    static let concurrentQueue = DispatchQueue(label: "vidloader_concurrent_queue", attributes: .concurrent)
+    
     var item: ItemInformation? {
         guard let data = taskDescription?.data else { return nil }
 
@@ -26,26 +28,34 @@ extension URLSessionTask {
     }
 
     func update(progress: Double, downloadedBytes: Int64) {
-        let bytes = Int(exactly: downloadedBytes) ?? .max
-        item
-            ?|> ItemInformation._progress .~ progress
-            ?|> ItemInformation._downloadedBytes .~ bytes
-            ?|> save
+        URLSessionTask.concurrentQueue.async(flags: .barrier) {
+            let bytes = Int(exactly: downloadedBytes) ?? .max
+            self.item
+                ?|> ItemInformation._progress .~ progress
+                ?|> ItemInformation._downloadedBytes .~ bytes
+                ?|> self.save
+        }
     }
 
     func update(location: URL) {
-        item
-            ?|> ItemInformation._path .~ location.relativePath
-            ?|> save
+        URLSessionTask.concurrentQueue.async(flags: .barrier) {
+            self.item
+                ?|> ItemInformation._path .~ location.relativePath
+                ?|> self.save
+        }
     }
 
     func update(state: DownloadState) {
-        item
-            ?|> ItemInformation._state .~ state
-            ?|> save
+        URLSessionTask.concurrentQueue.async(flags: .barrier) {
+            self.item
+                ?|> ItemInformation._state .~ state
+                ?|> self.save
+        }
     }
 
     func save(item: ItemInformation) {
-        taskDescription = (try? JSONEncoder().encode(item))?.string
+        URLSessionTask.concurrentQueue.async(flags: .barrier) {
+            self.taskDescription = (try? JSONEncoder().encode(item))?.string
+        }
     }
 }
