@@ -34,7 +34,7 @@ final class AggDownloadSession: NSObject {
     }
     
     /// The `didFinishDownloadingTo` method is called in many cases, we need to check asset state
-    fileprivate func handleDownloadState(item: ItemInformation, task: AVAggregateAssetDownloadTask) {
+    fileprivate func handleDownloadState(item: ItemInformation, task: URLSessionTask) {
         // When task was cancelled `didFinishDownloadingTo` delegate is calling
         // with completed state. `isCancelled` state is set in `cancelTask` function
         // and saved in task description. Also we need to handle cancelation here because
@@ -162,17 +162,8 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
     }
     
     func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask, didCompleteFor mediaSelection: AVMediaSelection) {
-        guard let item = aggregateAssetDownloadTask.item else { return }
-        switch aggregateAssetDownloadTask.state {
-        case .suspended:
-            stateChanged?(.noConnection(item.progress), item)
-        // `.canceling` can be thrown when application just launched with active downloads
-        case .canceling:
-            stateChanged?(.canceled, item)
-        case .running, .completed:
-            handleDownloadState(item: item, task: aggregateAssetDownloadTask)
-        @unknown default:
-            print("Unimplemented cases")
+        if #available(iOS 15.0, *) {
+            print("### didCompleteFormediaSelection", Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
         }
     }
     
@@ -181,13 +172,14 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
     // downloadedBytes - that is used to calculate remaining device storage
     func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
                     didLoad timeRange: CMTimeRange, totalTimeRangesLoaded loadedTimeRanges: [NSValue],
-                    timeRangeExpectedToLoad: CMTimeRange,
-                    for mediaSelection: AVMediaSelection) {
+                    timeRangeExpectedToLoad: CMTimeRange, for mediaSelection: AVMediaSelection) {
+        if #available(iOS 15.0, *) {
+            print("### totalTimeRangesLoaded", Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
+        }
         let progress = loadedTimeRanges.reduce(0) { $0 + $1.timeRangeValue.seconds / timeRangeExpectedToLoad.seconds }
         aggregateAssetDownloadTask.update(progress: min(1, max(0, progress)), downloadedBytes: aggregateAssetDownloadTask.countOfBytesReceived)
         guard aggregateAssetDownloadTask.state == .running, let item = aggregateAssetDownloadTask.item else { return }
         stateChanged?(.running(progress), item)
-        print("######## ", aggregateAssetDownloadTask.state.rawValue, aggregateAssetDownloadTask.state)
     }
 
     // All main logic is doing in `didFinishDownloadingTo` delegate because
@@ -201,18 +193,21 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
                     didCompleteWithError error: Error?) {
         // This is a very strange case, when `didCompleteWithError` is being
         // called after AVAssetDownloadTask.cancel()
-        print("######## ", task.state.rawValue, task.state)
+        if #available(iOS 15.0, *) {
+            print("### didCompleteWithError", Date().formatted(date: .omitted, time: .standard), task.state.rawValue)
+        }
         guard let item = task.item else { return }
 
-        guard !item.isCancelled else {
-            return
+        switch task.state {
+        case .suspended:
+            stateChanged?(.noConnection(item.progress), item)
+        // `.canceling` can be thrown when application just launched with active downloads
+        case .canceling:
+            stateChanged?(.canceled, item)
+        case .running, .completed:
+            handleDownloadState(item: item, task: task)
+        @unknown default:
+            print("Unimplemented cases")
         }
-        guard let error = error, !task.hasFailed else { return }
-        let state: DownloadState = .failed(error: .custom(VidLoaderError(error: error)))
-        stateChanged?(state, item |> ItemInformation._state .~ state)
-    }
-    
-    func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
-        print("######## ", task.state.rawValue, task.state)
     }
 }
