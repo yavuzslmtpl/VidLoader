@@ -109,10 +109,11 @@ final class M3U8Playlist: PlaylistParser {
             return keyURL
         }
         
-        var urlComponent = URLComponents(string: keyPath)
-        urlComponent?.host = baseURL.host
-        urlComponent?.scheme = SchemeType.original.rawValue
-        return urlComponent?.url(relativeTo: baseURL)
+        guard let pathURL = URL(string: keyPath, relativeTo: baseURL) else { return URL(string: keyPath) }
+        guard var urlComponent = URLComponents(url: pathURL, resolvingAgainstBaseURL: true) else { return URL(string: keyPath) }
+        urlComponent.host = baseURL.host
+        urlComponent.scheme = SchemeType.original.rawValue
+        return urlComponent.url
     }
     
     
@@ -125,13 +126,12 @@ final class M3U8Playlist: PlaylistParser {
         let chunks = response.matches(for: RegexStrings.mediaSection) + response.matches(for: RegexStrings.relativePlaylist)
         let keys = response.matches(for: RegexStrings.key).filter { URL(string: $0)?.scheme == nil }
         return (chunks + keys).reduce(into: response) { result, path in
-            var urlComponent = URLComponents(string: path)
-            urlComponent?.host = baseURL.host
-            urlComponent?.scheme = SchemeType.original.rawValue
-            let absoluteURLString = urlComponent?.url(relativeTo: baseURL)?.absoluteString
-            if (absoluteURLString != nil) {
-                result = result.replacingOccurrences(of: path, with: absoluteURLString!)
-            }
+            guard let pathURL = URL(string: path, relativeTo: baseURL) else { return }
+            guard var urlComponent = URLComponents(url: pathURL, resolvingAgainstBaseURL: true) else { return }
+            urlComponent.host = baseURL.host
+            urlComponent.scheme = SchemeType.original.rawValue
+            guard let absoluteURLString = urlComponent.url?.absoluteString else { return }
+            result = result.replacingOccurrences(of: path, with: absoluteURLString)
         }
     }
 }

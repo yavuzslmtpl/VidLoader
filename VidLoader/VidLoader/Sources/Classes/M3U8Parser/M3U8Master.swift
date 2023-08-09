@@ -47,13 +47,12 @@ final class M3U8Master: MasterParser {
 
         return (relativePlaylists + uris)
             .reduce(into: response) { result, path in
-                var urlComponent = URLComponents(string: path)
-                urlComponent?.host = baseURL.host
-                urlComponent?.scheme = SchemeType.variant.rawValue
-                let absoluteURLString = urlComponent?.url(relativeTo: baseURL)?.absoluteString
-                if (absoluteURLString != nil) {
-                    result = result.replacingOccurrences(of: path, with: absoluteURLString!)
-                }
+                guard let pathURL = URL(string: path, relativeTo: baseURL) else { return }
+                guard var urlComponent = URLComponents(url: pathURL, resolvingAgainstBaseURL: true) else { return }
+                urlComponent.host = baseURL.host
+                urlComponent.scheme = SchemeType.variant.rawValue
+                guard let absoluteURLString = urlComponent.url?.absoluteString else { return }
+                result = result.replacingOccurrences(of: path, with: absoluteURLString)
             }
     }
 }
