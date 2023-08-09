@@ -42,16 +42,18 @@ final class M3U8Master: MasterParser {
     ///   - baseURL: Master/variant stream resource URL
     /// - Returns: Updated response with absolute URLs
     private func replaceRelativePaths(response: String, with baseURL: URL) -> String {
-        guard let newBaseURL = baseURL.withScheme(scheme: .variant)?.deletingLastPathComponent() else {
-            return response
-        }
         let relativePlaylists = response.matches(for: RegexStrings.relativePlaylist)
         let uris =  response.matches(for: RegexStrings.uri).filter { URL(string: $0)?.scheme == nil }
 
         return (relativePlaylists + uris)
             .reduce(into: response) { result, path in
-                let absoluteURLString = newBaseURL.appendingPathComponent(path).absoluteString
-                result = result.replacingOccurrences(of: path, with: absoluteURLString)
+                var urlComponent = URLComponents(string: path)
+                urlComponent?.host = baseURL.host
+                urlComponent?.scheme = SchemeType.variant.rawValue
+                let absoluteURLString = urlComponent?.url(relativeTo: baseURL)?.absoluteString
+                if (absoluteURLString != nil) {
+                    result = result.replacingOccurrences(of: path, with: absoluteURLString!)
+                }
             }
     }
 }

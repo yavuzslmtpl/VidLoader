@@ -108,9 +108,11 @@ final class M3U8Playlist: PlaylistParser {
         if let keyURL = URL(string: keyPath), keyURL.scheme != nil {
             return keyURL
         }
-        let originalBaseURL = baseURL.withScheme(scheme: .original)?.deletingLastPathComponent()
-
-        return originalBaseURL?.appendingPathComponent(keyPath)
+        
+        var urlComponent = URLComponents(string: keyPath)
+        urlComponent?.host = baseURL.host
+        urlComponent?.scheme = SchemeType.original.rawValue
+        return urlComponent?.url(relativeTo: baseURL)
     }
     
     
@@ -120,14 +122,16 @@ final class M3U8Playlist: PlaylistParser {
     ///   - baseURL: Master/variant URL
     /// - Returns: Updated response with absolute URLs
     private func replaceRelativeChunks(response: String, with baseURL: URL) -> String {
-        guard let originalBaseURL = baseURL.withScheme(scheme: .original)?.deletingLastPathComponent() else {
-            return response
-        }
         let chunks = response.matches(for: RegexStrings.mediaSection) + response.matches(for: RegexStrings.relativePlaylist)
         let keys = response.matches(for: RegexStrings.key).filter { URL(string: $0)?.scheme == nil }
         return (chunks + keys).reduce(into: response) { result, path in
-            let absoluteURLString = originalBaseURL.appendingPathComponent(path).absoluteString
-            result = result.replacingOccurrences(of: path, with: absoluteURLString)
+            var urlComponent = URLComponents(string: path)
+            urlComponent?.host = baseURL.host
+            urlComponent?.scheme = SchemeType.original.rawValue
+            let absoluteURLString = urlComponent?.url(relativeTo: baseURL)?.absoluteString
+            if (absoluteURLString != nil) {
+                result = result.replacingOccurrences(of: path, with: absoluteURLString!)
+            }
         }
     }
 }
