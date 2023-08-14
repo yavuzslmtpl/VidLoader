@@ -163,7 +163,7 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
     
     func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask, didCompleteFor mediaSelection: AVMediaSelection) {
         if #available(iOS 15.0, *) {
-            print("### didCompleteFormediaSelection", Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
+            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
         }
     }
     
@@ -174,7 +174,7 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
                     didLoad timeRange: CMTimeRange, totalTimeRangesLoaded loadedTimeRanges: [NSValue],
                     timeRangeExpectedToLoad: CMTimeRange, for mediaSelection: AVMediaSelection) {
         if #available(iOS 15.0, *) {
-            print("### totalTimeRangesLoaded", Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
+            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
         }
         let progress = loadedTimeRanges.reduce(0) { $0 + $1.timeRangeValue.seconds / timeRangeExpectedToLoad.seconds }
         aggregateAssetDownloadTask.update(progress: min(1, max(0, progress)), downloadedBytes: aggregateAssetDownloadTask.countOfBytesReceived)
@@ -194,7 +194,7 @@ extension AggDownloadSession: AVAssetDownloadDelegate {
         // This is a very strange case, when `didCompleteWithError` is being
         // called after AVAssetDownloadTask.cancel()
         if #available(iOS 15.0, *) {
-            print("### didCompleteWithError", Date().formatted(date: .omitted, time: .standard), task.state.rawValue)
+            print("###", #function, Date().formatted(date: .omitted, time: .standard), task.state.rawValue)
         }
         guard let item = task.item else { return }
 

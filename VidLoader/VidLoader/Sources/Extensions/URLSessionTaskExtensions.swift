@@ -10,17 +10,19 @@ import Foundation
 
 extension URLSessionTask {
     static let concurrentQueue = DispatchQueue(label: "vidloader_concurrent_queue", attributes: .concurrent)
-    
-    var item: ItemInformation? {
-        guard let data = taskDescription?.data else { return nil }
 
-        return try? JSONDecoder().decode(ItemInformation.self, from: data)
+    var item: ItemInformation? {
+        URLSessionTask.concurrentQueue.sync(flags: .barrier) {
+            guard let data = taskDescription?.data else { return nil }
+
+            return try? JSONDecoder().decode(ItemInformation.self, from: data)
+        }
     }
 
     var hasFailed: Bool {
         guard let state = item?.state else { return false }
         switch state {
-        case .failed: return  true
+        case .failed: return true
         case .keyLoaded, .canceled, .completed, .prefetching,
              .running, .unknown, .waiting,
              .noConnection, .paused: return false
@@ -28,33 +30,30 @@ extension URLSessionTask {
     }
 
     func update(progress: Double, downloadedBytes: Int64) {
-        URLSessionTask.concurrentQueue.async(flags: .barrier) {
-            let bytes = Int(exactly: downloadedBytes) ?? .max
-            self.item
-                ?|> ItemInformation._progress .~ progress
-                ?|> ItemInformation._downloadedBytes .~ bytes
-                ?|> self.save
-        }
+        let bytes = Int(exactly: downloadedBytes) ?? .max
+        item
+            ?|> ItemInformation._progress .~ progress
+            ?|> ItemInformation._downloadedBytes .~ bytes
+            ?|> save
     }
 
     func update(location: URL) {
-        URLSessionTask.concurrentQueue.async(flags: .barrier) {
-            self.item
-                ?|> ItemInformation._path .~ location.relativePath
-                ?|> self.save
-        }
+        item
+            ?|> ItemInformation._path .~ location.relativePath
+            ?|> save
     }
 
     func update(state: DownloadState) {
-        URLSessionTask.concurrentQueue.async(flags: .barrier) {
-            self.item
-                ?|> ItemInformation._state .~ state
-                ?|> self.save
-        }
+        item
+            ?|> ItemInformation._state .~ state
+            ?|> save
     }
 
     func save(item: ItemInformation) {
-        URLSessionTask.concurrentQueue.async(flags: .barrier) {
+        URLSessionTask.concurrentQueue.sync(flags: .barrier) {
+            if #available(iOS 15.0, *) {
+                print("###", #function, Date().formatted(date: .omitted, time: .standard), item)
+            }
             self.taskDescription = (try? JSONEncoder().encode(item))?.string
         }
     }
