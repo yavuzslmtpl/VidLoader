@@ -1,5 +1,5 @@
 //
-//  DownloadSession.swift
+//  AggregateDownloadSession.swift
 //  VidLoader
 //
 //  Created by Petre on 01.09.19.
@@ -8,7 +8,20 @@
 
 import AVFoundation
 
-final class AggDownloadSession: NSObject {
+protocol AggregateSession {
+    func allTasks(completion: Completion<[AVAggregateAssetDownloadTask]>?)
+    func task(identifier: String, completion: Completion<AVAggregateAssetDownloadTask?>?)
+    func addNewTask(urlAsset: AVURLAsset, for item: ItemInformation, with mediaSelections: [AVMediaSelection]) -> AVAggregateAssetDownloadTask?
+    func cancelTask(identifier: String, hasNotFound: @escaping () -> Void)
+    func sendKeyLoaded(item: ItemInformation)
+    func suspendTask(identifier: String)
+    func resumeTask(identifier: String)
+    func suspendAllTasks()
+    func resumeAllTasks()
+    func setup(injectedSession: AVAssetDownloadURLSession?, stateChanged: ((DownloadState, ItemInformation) -> Void)?)
+}
+
+final class AggregateDownloadSession: NSObject {
     private var injectedSession: AVAssetDownloadURLSession?
     private var stateChanged: ((DownloadState, ItemInformation) -> Void)?
 
@@ -61,19 +74,19 @@ final class AggDownloadSession: NSObject {
     }
 }
 
-extension AggDownloadSession: Session {
-    func task(identifier: String, completion: Completion<URLSessionTask?>?) {
+extension AggregateDownloadSession: AggregateSession {
+    func task(identifier: String, completion: Completion<AVAggregateAssetDownloadTask?>?) {
         allTasks { tasks in
             let task = tasks.first(where: { $0.item?.identifier == identifier })
             completion?(task)
         }
     }
 
-    func allTasks(completion: Completion<[URLSessionTask]>?) {
-        session.getAllTasks { completion?($0.compactMap { $0 }) }
+    func allTasks(completion: Completion<[AVAggregateAssetDownloadTask]>?) {
+        session.getAllTasks { completion?($0.compactMap { $0 as? AVAggregateAssetDownloadTask }) }
     }
 
-    func addNewTask(urlAsset: AVURLAsset, for item: ItemInformation, with mediaSelections: [AVMediaSelection]) -> URLSessionTask? {
+    func addNewTask(urlAsset: AVURLAsset, for item: ItemInformation, with mediaSelections: [AVMediaSelection]) -> AVAggregateAssetDownloadTask? {
         let task = session.aggregateAssetDownloadTask(with: urlAsset,
                                                       mediaSelections: mediaSelections,
                                                       assetTitle: item.title ?? "",
@@ -153,7 +166,7 @@ extension AggDownloadSession: Session {
     }
 }
 
-extension AggDownloadSession: AVAssetDownloadDelegate {
+extension AggregateDownloadSession: AVAssetDownloadDelegate {
     
     // Even if task has failed we will save asset information as completed in plist
     // `didFinishDownloadingTo` delegate is calling first after this `didCompleteWithError` is also calling

@@ -61,7 +61,7 @@ public final class VidLoader: VidLoadable {
         }
     }
     /// AVAssetDownloadURLSession wrapper that handles all the states of the lifecycle of the tasks
-    private let session: Session
+    private let session: AggregateSession
     /// PlaylistLoader downloads all m3u8 master files from the server before creating a task in the session
     private let playlistLoader: PlaylistLoadable
     /// Maximal concurrent numbers of the active tasks in the session
@@ -87,7 +87,7 @@ public final class VidLoader: VidLoadable {
 
     init(isMobileDataAccessEnabled: Bool,
          maxConcurrentDownloads: Int,
-         session: Session = AggDownloadSession.init(),
+         session: AggregateSession = AggregateDownloadSession.init(),
          playlistLoader: PlaylistLoadable = PlaylistLoader.init(),
          network: Network = NetworkHandler.init(),
          schemeHandler: SchemeHandleable = SchemeHandler.init(),
@@ -257,11 +257,17 @@ public final class VidLoader: VidLoadable {
         }
     }
 
-    private func startTask(urlAsset: AVURLAsset, streamResource: StreamResource, item: ItemInformation, mediaSelections: [AVMediaSelection]=[]) {
+    private func startTask(urlAsset: AVURLAsset, streamResource: StreamResource, item: ItemInformation, mediaSelections: [AVMediaSelection]) {
+        if #unavailable(iOS 16.0) {
+            setupResourceDelegate(item: item, urlAsset: urlAsset, streamResource: streamResource)
+        }
         guard let task = session.addNewTask(urlAsset: urlAsset, for: item, with: mediaSelections) else {
             return
         }
         setupResourceDelegate(item: item, task: task, streamResource: streamResource)
+        if #available(iOS 16.0, *) {
+            setupResourceDelegate(item: item, task: task, streamResource: streamResource)
+        }
         task.resume()
     }
 
@@ -285,6 +291,26 @@ public final class VidLoader: VidLoadable {
             task.urlAsset.resourceLoader.preloadsEligibleContentKeys = true
         }
         
+        resourcesDelegatesHandler.add(identifier: item.identifier, loader: resourceLoader)
+    }
+
+    func setupResourceDelegate(item: ItemInformation,
+                               urlAsset: AVURLAsset,
+                               streamResource: StreamResource) {
+        let keyDidLoad: () -> Void = { [weak self] in
+            self?.session.allTasks { [weak self] tasks in
+                guard let upToDateItem = tasks.first(where: { $0.urlAsset == urlAsset })?.item else { return }
+                self?.session.sendKeyLoaded(item: upToDateItem)
+            }
+        }
+        let taskDidFail: (Error) -> Void = { [weak self] error in
+            self?.handle(event: .failed(error: .init(error: error)), activeItem: item)
+        }
+        let observer = ResourceLoaderObserver(taskDidFail: taskDidFail, keyDidLoad: keyDidLoad)
+        let resourceLoader = ResourceLoader(observer: observer, streamResource: streamResource, headers: item.headers)
+        urlAsset.resourceLoader.setDelegate(resourceLoader, queue: resourceLoader.queue)
+        urlAsset.resourceLoader.preloadsEligibleContentKeys = true
+
         resourcesDelegatesHandler.add(identifier: item.identifier, loader: resourceLoader)
     }
 }
