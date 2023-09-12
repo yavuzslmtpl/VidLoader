@@ -264,7 +264,6 @@ public final class VidLoader: VidLoadable {
         guard let task = session.addNewTask(urlAsset: urlAsset, for: item, with: mediaSelections) else {
             return
         }
-        setupResourceDelegate(item: item, task: task, streamResource: streamResource)
         if #available(iOS 16.0, *) {
             setupResourceDelegate(item: item, task: task, streamResource: streamResource)
         }
