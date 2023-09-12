@@ -241,6 +241,7 @@ public final class VidLoader: VidLoadable {
     }
 
     private func startNewTaskIfNeeded() {
+        if network.getNetworkState() == .unavailable { return }
         if activeItems.filter({ $1.inProgress }).count >= maxConcurrentDownloads { return }
         guard let (identifier, streamResource) = playlistLoader.nextStreamResource,
               let item = activeItems[identifier],

@@ -12,6 +12,7 @@ protocol Network {
     func setup(networkChanged: @escaping (NetworkState) -> Void)
     func enableMobileDataAccess()
     func disableMobileDataAccess()
+    func getNetworkState() -> NetworkState
 }
 
 final class NetworkHandler: NSObject, Network {
@@ -52,6 +53,10 @@ final class NetworkHandler: NSObject, Network {
 
     func disableMobileDataAccess() {
         isMobileDataAccessEnabled = false
+    }
+
+    func getNetworkState() -> NetworkState {
+        newState
     }
 
     // MARK: - Private functions
