@@ -175,9 +175,9 @@ extension AggregateDownloadSession: AVAssetDownloadDelegate {
     }
     
     func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask, didCompleteFor mediaSelection: AVMediaSelection) {
-        if #available(iOS 15.0, *) {
-            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
-        }
+//        if #available(iOS 15.0, *) {
+//            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
+//        }
     }
     
     // We are saving in task description:
@@ -186,9 +186,9 @@ extension AggregateDownloadSession: AVAssetDownloadDelegate {
     func urlSession(_ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
                     didLoad timeRange: CMTimeRange, totalTimeRangesLoaded loadedTimeRanges: [NSValue],
                     timeRangeExpectedToLoad: CMTimeRange, for mediaSelection: AVMediaSelection) {
-        if #available(iOS 15.0, *) {
-            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
-        }
+//        if #available(iOS 15.0, *) {
+//            print("###", #function, Date().formatted(date: .omitted, time: .standard), aggregateAssetDownloadTask.state.rawValue)
+//        }
         let progress = loadedTimeRanges.reduce(0) { $0 + $1.timeRangeValue.seconds / timeRangeExpectedToLoad.seconds }
         aggregateAssetDownloadTask.update(progress: min(1, max(0, progress)), downloadedBytes: aggregateAssetDownloadTask.countOfBytesReceived)
         guard aggregateAssetDownloadTask.state == .running, let item = aggregateAssetDownloadTask.item else { return }
@@ -206,9 +206,9 @@ extension AggregateDownloadSession: AVAssetDownloadDelegate {
                     didCompleteWithError error: Error?) {
         // This is a very strange case, when `didCompleteWithError` is being
         // called after AVAssetDownloadTask.cancel()
-        if #available(iOS 15.0, *) {
-            print("###", #function, Date().formatted(date: .omitted, time: .standard), task.state.rawValue)
-        }
+//        if #available(iOS 15.0, *) {
+//            print("###", #function, Date().formatted(date: .omitted, time: .standard), task.state.rawValue)
+//        }
         guard let item = task.item else { return }
 
         switch task.state {

@@ -51,9 +51,9 @@ extension URLSessionTask {
 
     func save(item: ItemInformation) {
         URLSessionTask.concurrentQueue.sync(flags: .barrier) {
-            if #available(iOS 15.0, *) {
-                print("###", #function, Date().formatted(date: .omitted, time: .standard), item)
-            }
+//            if #available(iOS 15.0, *) {
+//                print("###", #function, Date().formatted(date: .omitted, time: .standard), item)
+//            }
             self.taskDescription = (try? JSONEncoder().encode(item))?.string
         }
     }
