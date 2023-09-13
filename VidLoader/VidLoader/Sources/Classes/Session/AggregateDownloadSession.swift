@@ -17,7 +17,7 @@ protocol AggregateSession {
     func suspendTask(identifier: String)
     func resumeTask(identifier: String)
     func suspendAllTasks()
-    func resumeAllTasks()
+    func resumeAllTasks(startNewTaskIfNeeded: (() -> Void)?)
     func setup(injectedSession: AVAssetDownloadURLSession?, stateChanged: ((DownloadState, ItemInformation) -> Void)?)
 }
 
@@ -146,8 +146,13 @@ extension AggregateDownloadSession: AggregateSession {
         }
     }
 
-    func resumeAllTasks() {
+    func resumeAllTasks(startNewTaskIfNeeded: (() -> Void)?) {
         allTasks {
+            guard !$0.isEmpty else {
+                startNewTaskIfNeeded?()
+                return
+            }
+
             $0.forEach {
                 if $0.item?.isPaused == true { return }
                 return $0.resume()

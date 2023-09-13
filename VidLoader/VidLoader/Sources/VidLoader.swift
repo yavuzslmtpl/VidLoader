@@ -192,7 +192,7 @@ public final class VidLoader: VidLoadable {
         })
         network.setup(networkChanged: { [weak self] state in
             switch state {
-            case .available: self?.session.resumeAllTasks()
+            case .available: self?.session.resumeAllTasks(startNewTaskIfNeeded: self?.startNewTaskIfNeeded)
             case .unavailable: self?.session.suspendAllTasks()
             }
         })
