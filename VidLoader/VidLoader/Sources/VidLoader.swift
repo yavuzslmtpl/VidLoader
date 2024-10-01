@@ -259,15 +259,11 @@ public final class VidLoader: VidLoadable {
     }
 
     private func startTask(urlAsset: AVURLAsset, streamResource: StreamResource, item: ItemInformation, mediaSelections: [AVMediaSelection]) {
-        if #unavailable(iOS 16.0) {
-            setupResourceDelegate(item: item, urlAsset: urlAsset, streamResource: streamResource)
-        }
+        setupResourceDelegate(item: item, urlAsset: urlAsset, streamResource: streamResource)
         guard let task = session.addNewTask(urlAsset: urlAsset, for: item, with: mediaSelections) else {
             return
         }
-        if #available(iOS 16.0, *) {
-            setupResourceDelegate(item: item, task: task, streamResource: streamResource)
-        }
+        setupResourceDelegate(item: item, task: task, streamResource: streamResource)
         task.resume()
     }
 
